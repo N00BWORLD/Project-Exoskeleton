@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Project Hybrid Protocol</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="game-container">
+        <!-- The visual core: Single Canvas for high performance -->
+        <canvas id="game-canvas"></canvas>
+
+        <!-- UI Overlay: Stage View (Top) -->
+        <div id="ui-stage" class="ui-layer">
+            <!-- Stage info will go here -->
+        </div>
+
+        <!-- UI Overlay: Hero View (Middle) -->
+        <div id="ui-hero" class="ui-layer">
+            <!-- Hero stats/buffs will go here -->
+        </div>
+
+        <!-- UI Overlay: Controls (Bottom) -->
+        <div id="ui-controls" class="ui-layer">
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="merge">Merge</button>
+                <button class="tab-btn" data-tab="equip">Equip</button>
+            </div>
+            <div id="panel-merge" class="control-panel active">
+                <button id="btn-spawn">Spawn Minion (10G)</button>
+            </div>
+            <div id="panel-equip" class="control-panel" style="display:none;">
+                <div class="equip-slots">
+                    <div class="slot" data-type="weapon">Weapon</div>
+                    <div class="slot" data-type="helmet">Helmet</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script type="module" src="src/main.js"></script>
+</body>
+</html>
