@@ -38,6 +38,78 @@ export class UIManager {
         this.drawHero(ctx);
         this.drawHUD(ctx);
         this.drawFloatingTexts(ctx);
+
+        // Overlays
+        if (this.game.overlay) {
+            this.drawOverlay(ctx);
+        }
+    }
+
+    drawOverlay(ctx) {
+        // Dim background
+        ctx.fillStyle = 'rgba(0,0,0,0.85)';
+        ctx.fillRect(0, 0, this.game.canvas.width, this.game.canvas.height);
+
+        if (this.game.overlay === 'inventory') {
+            this.drawInventory(ctx);
+        } else if (this.game.overlay === 'codex') {
+            this.drawCodex(ctx);
+        }
+
+        // Close instruction
+        ctx.fillStyle = '#fff';
+        ctx.font = '14px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText("TAP SCREEN TO CLOSE", this.game.canvas.width / 2, this.game.canvas.height - 30);
+    }
+
+    drawInventory(ctx) {
+        // Reusing existing grid drawing logic
+        ctx.fillStyle = '#448';
+        ctx.font = 'bold 24px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText("🎒 EQUIPMENT (CUBES)", this.game.canvas.width / 2, 60);
+
+        // Use existing drawGrid method, but we can override position/style inside it 
+        // OR just call it. drawGrid uses hardcoded coordinates.
+        // Let's assume drawGrid works at (20,100).
+        this.drawGrid(ctx);
+    }
+
+    drawCodex(ctx) {
+        const { canvas, codex } = this.game;
+
+        ctx.fillStyle = '#884';
+        ctx.font = 'bold 24px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText("📖 CODEX", canvas.width / 2, 60);
+
+        const startY = 100;
+        const lineHeight = 35;
+
+        for (let i = 1; i <= 9; i++) { // Show Tiers 1-9
+            const y = startY + (i - 1) * lineHeight;
+            const isDiscovered = codex.isDiscovered(i);
+            const isUnlocked = codex.isUnlocked(i);
+
+            // Tier Label
+            ctx.textAlign = 'left';
+            ctx.fillStyle = isDiscovered ? `hsl(${i * 40}, 70%, 50%)` : '#444';
+            ctx.fillText(`TIER ${i}`, 40, y);
+
+            // Status
+            ctx.textAlign = 'right';
+            if (isUnlocked) {
+                ctx.fillStyle = '#ffd700';
+                ctx.fillText("MASTERED", canvas.width - 40, y);
+            } else if (isDiscovered) {
+                ctx.fillStyle = '#fff';
+                ctx.fillText("FOUND", canvas.width - 40, y);
+            } else {
+                ctx.fillStyle = '#666';
+                ctx.fillText("???", canvas.width - 40, y);
+            }
+        }
     }
 
     drawBackground(ctx) {

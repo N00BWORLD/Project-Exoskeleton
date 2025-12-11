@@ -23,7 +23,6 @@ export class MapScene {
         this.stepsPerCheck = 225; // Check every 225 pixels
         this.encounterGauge = 0; // 0-100 visual gauge
         this.currentZone = null;
-
         // Define hunting zones
         this.zones = [
             {
@@ -126,7 +125,18 @@ export class MapScene {
         return null;
     }
 
+    resetEncounterGauge() {
+        this.stepCounter = 0;
+        this.encounterGauge = 0;
+        this.isMoving = false;
+        this.targetX = this.playerX;
+        this.targetY = this.playerY;
+    }
+
     draw(ctx, canvas) {
+        // Reset transform to avoid artifacts from battle scene
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+
         ctx.fillStyle = '#1a1a1a';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 

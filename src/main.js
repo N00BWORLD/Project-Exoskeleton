@@ -28,6 +28,7 @@ class Game {
         this.accumulator = 0;
         this.dt = 1 / 60;
         this.time = 0;
+        this.overlay = null;
 
         this.init();
     }
@@ -87,11 +88,18 @@ class Game {
         console.log('Game Initialized - Map Mode');
     }
 
+
     setupInput() {
         this.canvas.addEventListener('pointerdown', (e) => {
             const rect = this.canvas.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
+
+            // Overlay interaction (Close on tap)
+            if (this.overlay) {
+                this.overlay = null;
+                return;
+            }
 
             if (this.scene.transitioning) return;
 
@@ -121,10 +129,24 @@ class Game {
         const btnFight = document.getElementById('btn-fight');
         if (btnFight) {
             btnFight.addEventListener('click', () => {
-                console.log("Fight button clicked!");
-                // Use first encountered zone or default
                 const testZone = this.mapScene.zones[1]; // 저렙 수풀
                 this.triggerEncounter(testZone);
+            });
+        }
+
+        // Inventory button
+        const btnInventory = document.getElementById('btn-inventory');
+        if (btnInventory) {
+            btnInventory.addEventListener('click', () => {
+                this.overlay = 'inventory';
+            });
+        }
+
+        // Codex button
+        const btnCodex = document.getElementById('btn-codex');
+        if (btnCodex) {
+            btnCodex.addEventListener('click', () => {
+                this.overlay = 'codex';
             });
         }
     }
@@ -147,6 +169,9 @@ class Game {
             console.log("Not enough turns");
             return;
         }
+
+        // Reset encounter gauge immediately
+        this.mapScene.resetEncounterGauge();
 
         this.currentZone = zone;
         console.log(`Encounter in ${zone.name}! Starting battle...`);
@@ -220,15 +245,21 @@ class Game {
     }
 
     update(dt) {
+        if (this.overlay) return; // Pause updates when overlay is open
+
         this.scene.update(dt);
         this.effects.update(dt);
         this.ui.update(dt);
 
         // Map scene updates
+        // Map scene updates
         if (this.scene.currentScene === 'map') {
             const encounterZone = this.mapScene.update(dt);
             if (encounterZone) {
-                this.triggerEncounter(encounterZone);
+                // Defer encounter trigger to next tick to avoid update loop conflicts
+                setTimeout(() => {
+                    this.triggerEncounter(encounterZone);
+                }, 0);
             }
         }
     }
