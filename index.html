@@ -19,13 +19,15 @@
         </div>
 
         <!-- UI Overlay: Hero View (Middle) -->
-        <div id="ui-hero" class="ui-layer">
+        <div id="ui-hero" class="ui-layer" style="pointer-events: none;">
             <!-- Hero stats/buffs will go here -->
         </div>
 
         <!-- Controls (Bottom 30%) -->
-        <div id="controls">
-            <div id="control-grid">
+        <div id="controls" style="position: absolute; bottom: 80px; width: 100%; pointer-events: none; z-index: 2000;">
+            <!-- Control Grid needs pointer-events: auto to be clickable -->
+            <div id="control-grid"
+                style="display: flex; gap: 5px; z-index: 2001; position: relative; pointer-events: auto; justify-content: center; padding-bottom: 20px;">
                 <button id="btn-fight" class="action-btn" style="background:#f44;">⚔️ 즉시 전투</button>
                 <button id="btn-inventory" class="action-btn" style="background:#448;">🎒 장비</button>
                 <button id="btn-codex" class="action-btn" style="background:#884;">📖 도감</button>

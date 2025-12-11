@@ -8,33 +8,35 @@ export class CodexManager {
     }
 
     // Called when player first obtains an item of this tier (removes ?)
-    discover(tier) {
-        if (!this.discoveredTiers.has(tier)) {
-            this.discoveredTiers.add(tier);
-            console.log(`CODEX: Tier ${tier} DISCOVERED (Fog of War lifted)`);
+    discover(tier, part = 'Head') {
+        const key = `${tier}_${part}`;
+        if (!this.discoveredTiers.has(key)) {
+            this.discoveredTiers.add(key);
+            console.log(`CODEX: Tier ${tier} (${part}) DISCOVERED`);
             return true;
         }
         return false;
     }
 
-    isDiscovered(tier) {
-        return this.discoveredTiers.has(tier);
+    isDiscovered(tier, part = 'Head') {
+        return this.discoveredTiers.has(`${tier}_${part}`);
     }
 
     // Called when player merges 5x of a tier (permanent unlock)
-    unlock(tier) {
-        if (!this.unlockedTiers.has(tier)) {
-            this.unlockedTiers.add(tier);
+    unlock(tier, part = 'Head') {
+        const key = `${tier}_${part}`;
+        if (!this.unlockedTiers.has(key)) {
+            this.unlockedTiers.add(key);
             this.save();
-            console.log(`CODEX: Tier ${tier} MASTERED! Preserved for next run.`);
-            if (this.onUnlock) this.onUnlock(tier);
+            console.log(`CODEX: Tier ${tier} (${part}) MASTERED! Preserved for next run.`);
+            if (this.onUnlock) this.onUnlock(tier, part);
             return true;
         }
         return false;
     }
 
-    isUnlocked(tier) {
-        return this.unlockedTiers.has(tier);
+    isUnlocked(tier, part = 'Head') {
+        return this.unlockedTiers.has(`${tier}_${part}`);
     }
 
     save() {
@@ -47,7 +49,19 @@ export class CodexManager {
         if (data) {
             try {
                 const arr = JSON.parse(data);
-                this.unlockedTiers = new Set(arr);
+                this.unlockedTiers = new Set();
+                arr.forEach(item => {
+                    // Migration for old number-only saves
+                    if (typeof item === 'number') {
+                        this.unlockedTiers.add(`${item}_Head`);
+                        this.unlockedTiers.add(`${item}_Core`);
+                        this.unlockedTiers.add(`${item}_Arm`);
+                        this.unlockedTiers.add(`${item}_Leg`);
+                        this.unlockedTiers.add(`${item}_Thruster`);
+                    } else {
+                        this.unlockedTiers.add(item);
+                    }
+                });
                 console.log("CODEX: Loaded", this.unlockedTiers);
             } catch (e) {
                 console.error("CODEX: Load failed", e);

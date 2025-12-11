@@ -15,7 +15,7 @@ import { SoundManager } from './engine/SoundManager.js';
 import { SceneManager } from './game/scenes/SceneManager.js';
 import { MapScene } from './game/scenes/MapScene.js';
 import { UIManager } from './game/ui/UIManager.js';
-import { BATTLE_CONFIG } from './data/GameConfig.js';
+import { BATTLE_CONFIG, PARTS } from './data/GameConfig.js';
 
 console.log('Hybrid Protocol: Starting...');
 
@@ -39,7 +39,7 @@ class Game {
 
         // Core Systems
         this.battery = new BatteryManager(30);
-        this.grid = new GridSystem(4, 4);
+        this.grid = new GridSystem(5, 5); // Expanded to 25 slots for 5 Parts
         this.codex = new CodexManager();
         this.sprites = new SpriteManager();
         this.sound = new SoundManager();
@@ -57,9 +57,13 @@ class Game {
         this.ui = new UIManager(this);
 
         // Callbacks
-        this.codex.onUnlock = (tier) => {
-            console.log(`Unlock T${tier}`);
-            if (this.skeleton) this.skeleton.setTier(tier);
+        this.codex.onUnlock = (tier, part) => {
+            console.log(`Unlock T${tier} ${part}`);
+            // Force status update (re-calc stats)
+            this.battle.updateHeroStats();
+
+            // Notification
+            this.ui.addFloatingText(`MASTERED: T${tier} ${part}`, this.canvas.width / 2, this.canvas.height * 0.2, '#ffd700');
         };
         this.battery.onDeplete = () => console.log("BATTERY DEPLETED");
 
@@ -97,9 +101,14 @@ class Game {
 
             // Overlay interaction (Close on tap)
             if (this.overlay) {
-                this.overlay = null;
+                // Debounce: verify if enough time passed since opening
+                if (Date.now() - (this.overlayOpenTime || 0) > 500) {
+                    this.overlay = null;
+                }
                 return;
             }
+            // If overlay is open, block clicks on map?
+            if (this.overlay) return;
 
             if (this.scene.transitioning) return;
 
@@ -128,26 +137,46 @@ class Game {
         // Immediate fight button
         const btnFight = document.getElementById('btn-fight');
         if (btnFight) {
-            btnFight.addEventListener('click', () => {
-                const testZone = this.mapScene.zones[1]; // 저렙 수풀
-                this.triggerEncounter(testZone);
+            btnFight.addEventListener('click', (e) => {
+                e.stopPropagation();
+
+                if (this.scene.currentScene !== 'map') return;
+
+                const zone = this.mapScene.currentZone;
+                if (!zone || zone.type === 'safe') {
+                    this.ui.addFloatingText("안전 지역입니다", this.canvas.width / 2, this.canvas.height * 0.4, '#f00');
+                    return;
+                }
+                this.triggerEncounter(zone);
             });
         }
 
         // Inventory button
         const btnInventory = document.getElementById('btn-inventory');
         if (btnInventory) {
-            btnInventory.addEventListener('click', () => {
+            const openInventory = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
                 this.overlay = 'inventory';
-            });
+                this.overlayOpenTime = Date.now(); // Set timestamp
+                console.log("Overlay OPEN: Inventory");
+            };
+            btnInventory.addEventListener('click', openInventory);
+            btnInventory.addEventListener('touchstart', openInventory, { passive: false });
         }
 
         // Codex button
         const btnCodex = document.getElementById('btn-codex');
         if (btnCodex) {
-            btnCodex.addEventListener('click', () => {
+            const openCodex = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
                 this.overlay = 'codex';
-            });
+                this.overlayOpenTime = Date.now(); // Set timestamp
+                console.log("Overlay OPEN: Codex");
+            };
+            btnCodex.addEventListener('click', openCodex);
+            btnCodex.addEventListener('touchstart', openCodex, { passive: false });
         }
     }
 
@@ -198,9 +227,19 @@ class Game {
 
     onBattleEnd(win) {
         if (win) {
-            const tier = this.currentZone.dropTier;
-            this.grid.addItem(tier, this.codex);
-            this.ui.addFloatingText(`+T${tier} 획득!`, this.canvas.width / 2, this.canvas.height * 0.4, '#0f0');
+            // Determine Drop
+            const maxTier = this.currentZone.dropTier || 1;
+            // Weighted random tier (higher tiers rarer, or just random range 1-max)
+            // User requested: "High level zone can drop low tier parts"
+            // Let's do a simple random for now: 1 to maxTier
+            const tier = Math.floor(Math.random() * maxTier) + 1;
+
+            // Determine Part
+            const availableParts = this.currentZone.dropParts || PARTS;
+            const part = availableParts[Math.floor(Math.random() * availableParts.length)];
+
+            this.grid.addItem(tier, this.codex, part);
+            this.ui.addFloatingText(`+T${tier} ${part} 획득!`, this.canvas.width / 2, this.canvas.height * 0.4, '#0f0');
         } else {
             this.battery.consume(BATTLE_CONFIG.TURN_COST_PENALTY);
             this.ui.addFloatingText(`패배!`, this.canvas.width / 2, this.canvas.height * 0.4, '#f00');
@@ -273,6 +312,11 @@ class Game {
         } else if (this.scene.isBattle()) {
             this.ui.draw(ctx);
             this.effects.draw(ctx);
+        }
+
+        // Global UI Overlay (Inventory/Codex)
+        if (this.overlay) {
+            this.ui.drawOverlay(ctx);
         }
 
         // Scene transition overlay

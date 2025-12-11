@@ -78,38 +78,58 @@ export class UIManager {
 
     drawCodex(ctx) {
         const { canvas, codex } = this.game;
+        const width = canvas.width;
 
-        ctx.fillStyle = '#884';
+        ctx.fillStyle = '#fff';
         ctx.font = 'bold 24px monospace';
         ctx.textAlign = 'center';
-        ctx.fillText("📖 CODEX", canvas.width / 2, 60);
+        ctx.fillText("CODEX (DISCOVERY LOG)", width / 2, 80);
 
-        const startY = 100;
-        const lineHeight = 35;
+        const parts = ['Head', 'Core', 'Arm', 'Leg', 'Thruster'];
+        const startX = 60;
+        const startY = 130;
+        const cellW = (width - 80) / 6; // 6 columns (Label + 5 Parts)
+        const cellH = 35;
 
-        for (let i = 1; i <= 9; i++) { // Show Tiers 1-9
-            const y = startY + (i - 1) * lineHeight;
-            const isDiscovered = codex.isDiscovered(i);
-            const isUnlocked = codex.isUnlocked(i);
+        // Header
+        ctx.font = '12px monospace';
+        parts.forEach((p, i) => {
+            ctx.fillText(p.substring(0, 3), startX + (i + 1) * cellW, startY - 10);
+        });
 
-            // Tier Label
+        for (let tier = 1; tier <= 9; tier++) {
+            const y = startY + (tier - 1) * cellH;
+
+            // Row Label
+            ctx.fillStyle = '#fff';
             ctx.textAlign = 'left';
-            ctx.fillStyle = isDiscovered ? `hsl(${i * 40}, 70%, 50%)` : '#444';
-            ctx.fillText(`TIER ${i}`, 40, y);
+            ctx.font = 'bold 16px monospace';
+            ctx.fillText(`T${tier}`, startX, y + 20);
 
-            // Status
-            ctx.textAlign = 'right';
-            if (isUnlocked) {
-                ctx.fillStyle = '#ffd700';
-                ctx.fillText("MASTERED", canvas.width - 40, y);
-            } else if (isDiscovered) {
-                ctx.fillStyle = '#fff';
-                ctx.fillText("FOUND", canvas.width - 40, y);
-            } else {
-                ctx.fillStyle = '#666';
-                ctx.fillText("???", canvas.width - 40, y);
-            }
+            // Matrix
+            ctx.textAlign = 'center';
+            parts.forEach((part, col) => {
+                const x = startX + (col + 1) * cellW;
+
+                const isMastered = codex.isUnlocked(tier, part);
+                const isDiscovered = codex.isDiscovered(tier, part);
+
+                if (isMastered) {
+                    ctx.fillStyle = '#ffd700'; // Gold
+                    ctx.fillText("★", x, y + 20);
+                } else if (isDiscovered) {
+                    ctx.fillStyle = '#fff';
+                    ctx.fillText("✓", x, y + 20);
+                } else {
+                    ctx.fillStyle = '#444';
+                    ctx.fillText("-", x, y + 20);
+                }
+            });
         }
+
+        ctx.fillStyle = '#aaa';
+        ctx.font = '12px monospace';
+        ctx.fillText("Tap to Close", width / 2, canvas.height - 50);
     }
 
     drawBackground(ctx) {
@@ -182,6 +202,11 @@ export class UIManager {
         const zoneName = currentZone ? currentZone.name : "Unknown";
         ctx.fillText(`Zone: ${zoneName}`, 20, 48);
 
+        // Debug: Overlay State
+        ctx.fillStyle = '#555';
+        ctx.font = '10px monospace';
+        ctx.fillText(`UI: ${this.game.overlay}`, 20, 65);
+
         // Turns
         ctx.fillStyle = battery.depleted ? '#f00' : '#0f0';
         ctx.font = 'bold 20px monospace';
@@ -236,5 +261,47 @@ export class UIManager {
         }
 
         ctx.restore();
+    }
+
+    drawGrid(ctx) {
+        const { grid, canvas } = this.game;
+
+        const gap = 8;
+        const padding = 20;
+        const availableWidth = canvas.width - (padding * 2);
+        const cellSize = Math.floor((availableWidth - (gap * (grid.cols - 1))) / grid.cols);
+
+        const startX = padding;
+        const startY = 100;
+
+        for (let i = 0; i < grid.cells.length; i++) {
+            const x = startX + (i % grid.cols) * (cellSize + gap);
+            const y = startY + Math.floor(i / grid.cols) * (cellSize + gap);
+
+            // Cell bg
+            ctx.fillStyle = '#333';
+            ctx.fillRect(x, y, cellSize, cellSize);
+            ctx.strokeStyle = '#555';
+            ctx.strokeRect(x, y, cellSize, cellSize);
+
+            const item = grid.cells[i];
+            if (item) {
+                // Item (Cube)
+                ctx.fillStyle = `hsl(${item.tier * 40}, 70%, 50%)`;
+                ctx.fillRect(x + 4, y + 4, cellSize - 8, cellSize - 8);
+
+                // Tier text
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 14px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText(`T${item.tier}`, x + cellSize / 2, y + cellSize / 2);
+
+                // Part text (if exists)
+                if (item.part) {
+                    ctx.font = '10px monospace';
+                    ctx.fillText(item.part.substring(0, 3), x + cellSize / 2, y + cellSize / 2 + 15);
+                }
+            }
+        }
     }
 }

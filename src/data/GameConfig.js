@@ -8,6 +8,8 @@ export const BATTLE_CONFIG = {
     TURN_DURATION_MS: 500
 };
 
+export const PARTS = ['Head', 'Core', 'Arm', 'Leg', 'Thruster'];
+
 // Stats gained for EACH Mastered (Unlocked) Tier in Codex
 // Adding a new key here automatically adds it to the Hero's stats calculation.
 export const MASTERY_BONUS = {

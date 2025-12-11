@@ -41,7 +41,8 @@ export class MapScene {
                 color: '#3a6a3a',
                 encounterRate: 1.0, // 100%
                 difficulty: 1.0,
-                dropTier: 1
+                dropTier: 1,
+                dropParts: ['Head', 'Arm']
             },
             {
                 id: 2,
@@ -50,7 +51,8 @@ export class MapScene {
                 color: '#2a5a2a',
                 encounterRate: 1.0, // 100%
                 difficulty: 1.5,
-                dropTier: 2
+                dropTier: 2,
+                dropParts: ['Core', 'Leg']
             },
             {
                 id: 3,
@@ -59,7 +61,8 @@ export class MapScene {
                 color: '#5a3a2a',
                 encounterRate: 1.0, // 100%
                 difficulty: 2.5,
-                dropTier: 3
+                dropTier: 3,
+                dropParts: ['Thruster']
             }
         ];
     }

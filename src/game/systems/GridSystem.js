@@ -7,16 +7,21 @@ export class GridSystem {
     }
 
     // Add item to first empty slot
-    addItem(tier, codex) {
+    addItem(tier, codex, part = 'Head') {
         const emptyIndex = this.cells.indexOf(null);
         if (emptyIndex === -1) {
             return false; // Grid full
         }
 
         // Register Discovery (Fog of War removal)
+        // Codex needs to handle part-based discovery now, but for now we stick to Tier discovery compatibility
         if (codex) codex.discover(tier);
 
-        this.cells[emptyIndex] = { tier: tier, id: Date.now() + Math.random() };
+        this.cells[emptyIndex] = {
+            tier: tier,
+            part: part,
+            id: Date.now() + Math.random()
+        };
         this.dirty = true;
 
         // Trigger Merge Check
@@ -26,19 +31,26 @@ export class GridSystem {
 
     // Core Mechanic: 5-Match Merge & Codex Unlock
     tryAutoMergeAndUnlock(codex) {
-        // 1. Group by Tier
+        // 1. Group by Tier AND Part
+        // Key format: "TIER_PART" (e.g. "1_Head")
         const inventory = {};
+
         this.cells.forEach((item, index) => {
             if (!item) return;
-            if (!inventory[item.tier]) inventory[item.tier] = [];
-            inventory[item.tier].push(index);
+            // Fallback for old items without part
+            const part = item.part || 'Head';
+            const key = `${item.tier}_${part}`;
+
+            if (!inventory[key]) inventory[key] = [];
+            inventory[key].push(index);
         });
 
         let changed = false;
 
         // 2. Check for 5-Matches
-        for (const tierStr in inventory) {
-            const indices = inventory[tierStr];
+        for (const key in inventory) {
+            const indices = inventory[key];
+            const [tierStr, part] = key.split('_');
             const tier = parseInt(tierStr);
 
             if (indices.length >= 5) {
@@ -55,6 +67,7 @@ export class GridSystem {
 
                     // Upgrade the 5th slot
                     this.cells[upgradeIdx].tier += 1;
+                    this.cells[upgradeIdx].part = part; // Keep same part
                     this.cells[upgradeIdx].id = Date.now(); // Refresh ID
 
                     // Register Discovery of new Tier immediately
@@ -62,13 +75,13 @@ export class GridSystem {
 
                     // b) Unlock (Master) the Source Tier in Codex
                     if (this.codex) {
-                        const isNew = this.codex.unlock(tier);
+                        const isNew = this.codex.unlock(tier, part);
                         if (isNew) {
-                            console.log(`NEW DISCOVERY: Tier ${tier} MASTERED!`);
+                            console.log(`NEW DISCOVERY: Tier ${tier} (${part}) MASTERED!`);
                             this.updateHeroVisuals(); // Refresh Equipment
                         }
                     }
-                    console.log(`MERGE: 5x T${tier} -> 1x T${tier + 1}`);
+                    console.log(`MERGE: 5x T${tier} (${part}) -> 1x T${tier + 1} (${part})`);
                     changed = true;
                 }
             }
