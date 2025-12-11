@@ -2,91 +2,159 @@ import { Bone } from './Bone.js';
 
 export class Skeleton {
     constructor(x, y) {
-        // Create a standard Humanoid Rig
-        this.root = new Bone("Root", 0);
+        // Create Hierarchy
+        this.root = new Bone("Root");
         this.root.x = x;
         this.root.y = y;
 
-        // Body
-        this.body = new Bone("Body", 60);
-        this.root.addChild(this.body);
-        this.body.rotation = -Math.PI / 2; // Point Upwards
+        // Spine -> Head
+        this.spine = new Bone("Spine", 40);
+        this.root.addChild(this.spine);
+        this.spine.x = 0;
+        this.spine.y = -40;
+        this.spine.rotation = -Math.PI / 2; // -90 degrees
+        this.spine.imageName = 'hero_body';
 
-        // Head
         this.head = new Bone("Head", 30);
-        this.body.addChild(this.head);
-        this.head.x = 60; // Attach to top of body
+        this.spine.addChild(this.head);
+        this.head.x = 40;
+        this.head.y = 0;
+        this.head.rotation = 0;
+        this.head.color = '#f00';
+        this.head.imageName = 'hero_head';
 
-        // Arms (Left/Right)
-        this.armL = new Bone("Arm_L", 40);
-        this.body.addChild(this.armL);
-        this.armL.x = 50;
-        this.armL.y = -15; // Shoulder offset
-        this.armL.rotation = Math.PI / 4; // T-pose adjustment
+        // Arms (Right)
+        this.armR = new Bone("Arm_R", 30);
+        this.spine.addChild(this.armR);
+        this.armR.x = 30;
+        this.armR.y = 20;
+        this.armR.rotation = Math.PI / 4; // 45 degrees
+        this.armR.imageName = 'hero_arm_upper';
 
-        this.forearmL = new Bone("Forearm_L", 40);
-        this.armL.addChild(this.forearmL);
-        this.forearmL.x = 40;
-
-        this.armR = new Bone("Arm_R", 40);
-        this.body.addChild(this.armR);
-        this.armR.x = 50;
-        this.armR.y = 15;
-        this.armR.rotation = -Math.PI / 4;
-
-        this.forearmR = new Bone("Forearm_R", 40);
+        this.forearmR = new Bone("Forearm_R", 30);
         this.armR.addChild(this.forearmR);
         this.forearmR.x = 40;
+        this.forearmR.imageName = 'hero_arm_lower';
 
-        // Initialize
+        // Additional Hand Bone for Weapon
+        this.handR = new Bone("Hand_R", 10);
+        this.forearmR.addChild(this.handR);
+        this.handR.x = 30;
+        this.handR.imageName = 'hero_hand';
+
+        // Legs (Right)
+        this.legR = new Bone("Leg_R", 30);
+        this.root.addChild(this.legR);
+        this.legR.x = 10;
+        this.legR.y = 10;
+        this.legR.rotation = Math.PI / 2; // 90 degrees down
+        this.legR.imageName = 'hero_leg_upper';
+
+        this.shinR = new Bone("Shin_R", 40);
+        this.legR.addChild(this.shinR);
+        this.shinR.x = 30;
+        this.shinR.imageName = 'hero_leg_lower';
+
+        this.footR = new Bone("Foot_R", 15);
+        this.shinR.addChild(this.footR);
+        this.footR.x = 40;
+        this.footR.imageName = 'hero_foot';
+
+        // Initial Calculation
         this.root.updateWorldTransform();
+    }
+
+    // Helper to equip items
+    equip(boneName, imageName) {
+        const findBone = (bone) => {
+            if (bone.name === boneName) return bone;
+            for (const child of bone.children) {
+                const found = findBone(child);
+                if (found) return found;
+            }
+            return null;
+        };
+
+        const target = findBone(this.root);
+        if (target) {
+            // If attachments doesn't exist, init it
+            if (!target.attachments) target.attachments = [];
+
+            // For now, clear previous attachments in this slot/bone? 
+            // Or just append? User said Layering. 
+            // Let's assume 1 attachment per bone for now (e.g. Helm on Head).
+            target.attachments = [imageName];
+            console.log(`Equipped ${imageName} on ${boneName}`);
+        }
     }
 
     update(dt, totalTime) {
-        // Procedural Idle Animation
-        // Breathe: Scale body slightly
-        this.body.scaleX = 1 + Math.sin(totalTime * 2) * 0.05;
-
-        // Sway: Rotate root slightly
+        // Procedural Animation (Idle Breathe/Sway)
+        this.spine.scaleX = 1 + Math.sin(totalTime * 4) * 0.02;
         this.root.rotation = Math.sin(totalTime) * 0.05;
+        this.armR.rotation = (Math.PI / 4) + Math.sin(totalTime * 3) * 0.1;
 
-        // Arms: Idle swing
-        this.armL.rotation = (Math.PI / 4) + Math.sin(totalTime * 1.5 + 1) * 0.1;
-        this.armR.rotation = (-Math.PI / 4) + Math.sin(totalTime * 1.5) * 0.1;
-
-        // Recalculate Matrices
         this.root.updateWorldTransform();
     }
 
-    draw(ctx) {
-        this.drawBone(ctx, this.root);
+    draw(ctx, spriteManager) {
+        ctx.save();
+        ctx.translate(this.root.x, this.root.y);
+
+        // Flatten bones list for loop
+        const allBones = [];
+        const collect = (b) => {
+            allBones.push(b);
+            b.children.forEach(collect);
+        };
+        collect(this.root);
+
+        for (const bone of allBones) {
+            const m = bone.worldMatrix;
+            ctx.setTransform(m[0], m[1], m[2], m[3], m[4], m[5]);
+
+            // 1. Draw Base Sprite
+            if (spriteManager) {
+                this.drawLayer(ctx, spriteManager, bone.imageName);
+
+                // 2. Draw Attachments (Equipment)
+                if (bone.attachments) {
+                    for (const att of bone.attachments) {
+                        this.drawLayer(ctx, spriteManager, att);
+                    }
+                }
+            } else {
+                this.drawDebugBone(ctx, bone);
+            }
+        }
+        ctx.restore();
     }
 
-    drawBone(ctx, bone) {
-        // 1. Calculate End Point for visualization
-        const c = Math.cos(bone.worldRotation);
-        const s = Math.sin(bone.worldRotation);
+    drawLayer(ctx, spriteManager, imageName) {
+        if (!imageName) return;
+        const img = spriteManager.get(imageName);
+        if (img) {
+            // Scale to reasonable size (images are 1024x1024, scale down to ~50-80px)
+            const targetSize = 60; // Base size for body parts
+            const scale = targetSize / Math.max(img.width, img.height);
+            const w = img.width * scale;
+            const h = img.height * scale;
+            // Draw centered
+            ctx.drawImage(img, -w / 2, -h / 2, w, h);
+        }
+    }
 
-        const endX = bone.worldX + (c * bone.length * bone.worldScaleX);
-        const endY = bone.worldY + (s * bone.length * bone.worldScaleY);
-
-        // 2. Draw Bone (Line)
+    drawDebugBone(ctx, bone) {
         ctx.beginPath();
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 3;
-        ctx.moveTo(bone.worldX, bone.worldY);
-        ctx.lineTo(endX, endY);
+        ctx.moveTo(0, 0);
+        ctx.lineTo(bone.length, 0);
+        ctx.strokeStyle = bone.color || '#fff';
+        ctx.lineWidth = 5;
         ctx.stroke();
 
-        // 3. Draw Joint (Circle)
+        ctx.fillStyle = '#888';
         ctx.beginPath();
-        ctx.fillStyle = '#0f0'; // Green for joints
-        ctx.arc(bone.worldX, bone.worldY, 4, 0, Math.PI * 2);
+        ctx.arc(0, 0, 4, 0, Math.PI * 2);
         ctx.fill();
-
-        // 4. Draw children
-        for (const child of bone.children) {
-            this.drawBone(ctx, child);
-        }
     }
 }
