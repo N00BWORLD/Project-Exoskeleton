@@ -2,69 +2,88 @@ import { Bone } from './Bone.js';
 
 export class Skeleton {
     constructor(x, y) {
-        // Create Hierarchy
+        // Root (Center of body)
         this.root = new Bone("Root");
         this.root.x = x;
         this.root.y = y;
 
-        // Spine -> Head
-        this.spine = new Bone("Spine", 40);
-        this.root.addChild(this.spine);
-        this.spine.x = 0;
-        this.spine.y = -40;
-        this.spine.rotation = -Math.PI / 2; // -90 degrees
-        this.spine.imageName = 'hero_body';
+        // Direction: 1 = facing right, -1 = facing left
+        this.facing = 1;
 
-        this.head = new Bone("Head", 30);
-        this.spine.addChild(this.head);
-        this.head.x = 40;
-        this.head.y = 0;
-        this.head.rotation = 0;
-        this.head.color = '#f00';
-        this.head.imageName = 'hero_head';
+        // Attack animation state
+        this.isAttacking = false;
+        this.attackTime = 0;
+        this.attackDuration = 0.3; // seconds
 
-        // Arms (Right)
-        this.armR = new Bone("Arm_R", 30);
-        this.spine.addChild(this.armR);
-        this.armR.x = 30;
-        this.armR.y = 20;
-        this.armR.rotation = Math.PI / 4; // 45 degrees
-        this.armR.imageName = 'hero_arm_upper';
+        // === 6-PART STRUCTURE + WEAPON ===
+        // 1. Chest (Body/Torso)
+        this.chest = new Bone("Chest", 50);
+        this.root.addChild(this.chest);
+        this.chest.x = 0;
+        this.chest.y = 0;
+        this.chest.imageName = 'hero_t0_chest';
 
-        this.forearmR = new Bone("Forearm_R", 30);
-        this.armR.addChild(this.forearmR);
-        this.forearmR.x = 40;
-        this.forearmR.imageName = 'hero_arm_lower';
+        // 2. Head
+        this.head = new Bone("Head", 40);
+        this.chest.addChild(this.head);
+        this.head.x = 0;
+        this.head.y = -50;
+        this.head.imageName = 'hero_t0_head';
 
-        // Additional Hand Bone for Weapon
-        this.handR = new Bone("Hand_R", 10);
-        this.forearmR.addChild(this.handR);
-        this.handR.x = 30;
-        this.handR.imageName = 'hero_hand';
+        // 3. Left Arm
+        this.armL = new Bone("Arm_L", 45);
+        this.chest.addChild(this.armL);
+        this.armL.x = -40;
+        this.armL.y = -20;
+        this.armL.rotation = Math.PI / 6;
+        this.armL.imageName = 'hero_t0_arm_l';
 
-        // Legs (Right)
-        this.legR = new Bone("Leg_R", 30);
+        // 4. Right Arm (Weapon Arm)
+        this.armR = new Bone("Arm_R", 45);
+        this.chest.addChild(this.armR);
+        this.armR.x = 40;
+        this.armR.y = -20;
+        this.armR.rotation = -Math.PI / 6;
+        this.armR.imageName = 'hero_t0_arm_r';
+
+        // 5. Sword (attached to right arm)
+        this.sword = new Bone("Sword", 60);
+        this.armR.addChild(this.sword);
+        this.sword.x = 45; // End of arm
+        this.sword.y = 0;
+        this.sword.rotation = 0;
+        this.sword.imageName = 'weapon_sword';
+
+        // 6. Left Leg
+        this.legL = new Bone("Leg_L", 50);
+        this.root.addChild(this.legL);
+        this.legL.x = -15;
+        this.legL.y = 40;
+        this.legL.imageName = 'hero_t0_leg_l';
+
+        // 7. Right Leg
+        this.legR = new Bone("Leg_R", 50);
         this.root.addChild(this.legR);
-        this.legR.x = 10;
-        this.legR.y = 10;
-        this.legR.rotation = Math.PI / 2; // 90 degrees down
-        this.legR.imageName = 'hero_leg_upper';
+        this.legR.x = 15;
+        this.legR.y = 40;
+        this.legR.imageName = 'hero_t0_leg_r';
 
-        this.shinR = new Bone("Shin_R", 40);
-        this.legR.addChild(this.shinR);
-        this.shinR.x = 30;
-        this.shinR.imageName = 'hero_leg_lower';
-
-        this.footR = new Bone("Foot_R", 15);
-        this.shinR.addChild(this.footR);
-        this.footR.x = 40;
-        this.footR.imageName = 'hero_foot';
-
-        // Initial Calculation
         this.root.updateWorldTransform();
     }
 
-    // Helper to equip items
+    // Set facing direction
+    setFacing(direction) {
+        this.facing = direction >= 0 ? 1 : -1;
+    }
+
+    // Trigger slash attack
+    attack() {
+        if (!this.isAttacking) {
+            this.isAttacking = true;
+            this.attackTime = 0;
+        }
+    }
+
     equip(boneName, imageName) {
         const findBone = (bone) => {
             if (bone.name === boneName) return bone;
@@ -77,22 +96,40 @@ export class Skeleton {
 
         const target = findBone(this.root);
         if (target) {
-            // If attachments doesn't exist, init it
             if (!target.attachments) target.attachments = [];
-
-            // For now, clear previous attachments in this slot/bone? 
-            // Or just append? User said Layering. 
-            // Let's assume 1 attachment per bone for now (e.g. Helm on Head).
             target.attachments = [imageName];
-            console.log(`Equipped ${imageName} on ${boneName}`);
         }
     }
 
     update(dt, totalTime) {
-        // Procedural Animation (Idle Breathe/Sway)
-        this.spine.scaleX = 1 + Math.sin(totalTime * 4) * 0.02;
-        this.root.rotation = Math.sin(totalTime) * 0.05;
-        this.armR.rotation = (Math.PI / 4) + Math.sin(totalTime * 3) * 0.1;
+        // Idle Animation
+        this.chest.scaleY = 1 + Math.sin(totalTime * 3) * 0.02;
+
+        // Attack Animation
+        if (this.isAttacking) {
+            this.attackTime += dt;
+            const progress = this.attackTime / this.attackDuration;
+
+            if (progress < 0.5) {
+                // Wind up - arm goes back
+                this.armR.rotation = -Math.PI / 6 - progress * Math.PI * 0.8;
+                this.sword.rotation = -progress * Math.PI * 0.3;
+            } else if (progress < 1.0) {
+                // Slash - arm swings forward
+                const swingProgress = (progress - 0.5) * 2;
+                this.armR.rotation = -Math.PI / 6 - Math.PI * 0.4 + swingProgress * Math.PI * 1.2;
+                this.sword.rotation = -Math.PI * 0.15 + swingProgress * Math.PI * 0.6;
+            } else {
+                // Done
+                this.isAttacking = false;
+                this.armR.rotation = -Math.PI / 6;
+                this.sword.rotation = 0;
+            }
+        } else {
+            // Normal arm sway when not attacking
+            this.armL.rotation = Math.PI / 6 + Math.sin(totalTime * 2) * 0.1;
+            this.armR.rotation = -Math.PI / 6 - Math.sin(totalTime * 2) * 0.1;
+        }
 
         this.root.updateWorldTransform();
     }
@@ -101,7 +138,9 @@ export class Skeleton {
         ctx.save();
         ctx.translate(this.root.x, this.root.y);
 
-        // Flatten bones list for loop
+        // Flip based on facing direction
+        ctx.scale(this.facing, 1);
+
         const allBones = [];
         const collect = (b) => {
             allBones.push(b);
@@ -111,13 +150,10 @@ export class Skeleton {
 
         for (const bone of allBones) {
             const m = bone.worldMatrix;
-            ctx.setTransform(m[0], m[1], m[2], m[3], m[4], m[5]);
+            ctx.setTransform(m[0] * this.facing, m[1], m[2] * this.facing, m[3], m[4] * this.facing, m[5]);
 
-            // 1. Draw Base Sprite
             if (spriteManager) {
                 this.drawLayer(ctx, spriteManager, bone.imageName);
-
-                // 2. Draw Attachments (Equipment)
                 if (bone.attachments) {
                     for (const att of bone.attachments) {
                         this.drawLayer(ctx, spriteManager, att);
@@ -134,27 +170,20 @@ export class Skeleton {
         if (!imageName) return;
         const img = spriteManager.get(imageName);
         if (img) {
-            // Scale to reasonable size (images are 1024x1024, scale down to ~50-80px)
-            const targetSize = 60; // Base size for body parts
+            const targetSize = imageName.includes('sword') ? 80 : 70;
             const scale = targetSize / Math.max(img.width, img.height);
             const w = img.width * scale;
             const h = img.height * scale;
-            // Draw centered
             ctx.drawImage(img, -w / 2, -h / 2, w, h);
         }
     }
 
     drawDebugBone(ctx, bone) {
-        ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.lineTo(bone.length, 0);
-        ctx.strokeStyle = bone.color || '#fff';
-        ctx.lineWidth = 5;
-        ctx.stroke();
-
-        ctx.fillStyle = '#888';
-        ctx.beginPath();
-        ctx.arc(0, 0, 4, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.fillStyle = bone.color || '#555';
+        ctx.fillRect(-10, -20, 20, 40);
+        ctx.fillStyle = '#fff';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(bone.name, 0, 5);
     }
 }

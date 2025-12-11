@@ -18,6 +18,16 @@ export class BattleSystem {
         this.enemyATK = 10;
 
         this.onBattleEnd = null; // Callback
+
+        // Speed multiplier: 1 = normal, 2 = 2x, 3 = 3x
+        this.speedMultiplier = 1;
+    }
+
+    // Cycle through speeds: 1 -> 2 -> 3 -> 1
+    cycleSpeed() {
+        this.speedMultiplier = this.speedMultiplier >= 3 ? 1 : this.speedMultiplier + 1;
+        console.log(`Battle Speed: ${this.speedMultiplier}x`);
+        return this.speedMultiplier;
     }
 
     calculateStats(codex, zone) {
@@ -86,7 +96,9 @@ export class BattleSystem {
                 }
                 this.enemyHP -= dmg;
 
-                // Visuals
+                // Visuals - Trigger slash attack
+                this.game.skeleton.setFacing(1); // Face right (toward enemy)
+                this.game.skeleton.attack(); // Trigger slash animation
                 this.game.skeleton.root.x += 30;
                 setTimeout(() => this.game.skeleton.root.x -= 30, 100);
                 this.game.enemyShake = 10;
@@ -96,7 +108,7 @@ export class BattleSystem {
                 const ey = this.game.canvas.height * 0.5;
                 const dmgText = isCrit ? `${dmg} 크리티컬!` : `-${dmg}`;
                 const dmgColor = isCrit ? '#ff0' : '#fff';
-                this.game.addFloatingText(dmgText, ex, ey, dmgColor);
+                this.game.ui.addFloatingText(dmgText, ex, ey, dmgColor);
 
                 console.log(`Hero hits! Enemy HP: ${this.enemyHP}`);
             } else {
@@ -111,14 +123,14 @@ export class BattleSystem {
                 // Floating Damage Text (at hero position)
                 const hx = this.game.canvas.width * 0.35;
                 const hy = this.game.canvas.height * 0.5;
-                this.game.addFloatingText(`-${dmg}`, hx, hy, '#f66');
+                this.game.ui.addFloatingText(`-${dmg}`, hx, hy, '#f66');
 
                 console.log(`Enemy hits! Hero HP: ${this.heroHP}`);
             }
 
             this.combatStep(!isHeroTurn);
 
-        }, BATTLE_CONFIG.TURN_DURATION_MS);
+        }, BATTLE_CONFIG.TURN_DURATION_MS / this.speedMultiplier);
     }
 
     finish(win) {
