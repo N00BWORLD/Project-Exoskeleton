@@ -1,20 +1,20 @@
 /**
  * main.js - Game Entry Point
- * Refactored to be lightweight (~100 lines)
- * All UI logic moved to UIManager, Input logic to InputManager
+ * Top-Down Map + Random Encounter + Battle System
  */
 
 import { Renderer } from './engine/Renderer.js';
 import { Skeleton } from './engine/Skeleton.js';
+import { EffectManager } from './engine/EffectManager.js';
 import { BatteryManager } from './game/systems/BatteryManager.js';
 import { GridSystem } from './game/systems/GridSystem.js';
-import { ZoneManager } from './game/systems/ZoneManager.js';
 import { CodexManager } from './game/systems/CodexManager.js';
 import { BattleSystem } from './game/systems/BattleSystem.js';
 import { SpriteManager } from './engine/SpriteManager.js';
 import { SoundManager } from './engine/SoundManager.js';
+import { SceneManager } from './game/scenes/SceneManager.js';
+import { MapScene } from './game/scenes/MapScene.js';
 import { UIManager } from './game/ui/UIManager.js';
-import { InputManager } from './game/ui/InputManager.js';
 import { BATTLE_CONFIG } from './data/GameConfig.js';
 
 console.log('Hybrid Protocol: Starting...');
@@ -24,7 +24,6 @@ class Game {
         this.canvas = document.getElementById('game-canvas');
         this.renderer = new Renderer(this.canvas);
 
-        // Fixed timestep loop
         this.lastTime = 0;
         this.accumulator = 0;
         this.dt = 1 / 60;
@@ -40,29 +39,34 @@ class Game {
         // Core Systems
         this.battery = new BatteryManager(30);
         this.grid = new GridSystem(4, 4);
-        this.zone = new ZoneManager();
         this.codex = new CodexManager();
         this.sprites = new SpriteManager();
         this.sound = new SoundManager();
+        this.effects = new EffectManager();
+
+        // Scene System
+        this.scene = new SceneManager();
+        this.mapScene = new MapScene(this);
         this.battle = new BattleSystem(this);
 
-        // UI & Input Managers
+        // Current encounter zone
+        this.currentZone = null;
+
+        // UI (for battle scene)
         this.ui = new UIManager(this);
-        this.input = new InputManager(this);
 
         // Callbacks
         this.codex.onUnlock = (tier) => {
-            console.log(`Unlock T${tier}, Updating Visuals...`);
-            this.updateHeroVisuals();
+            console.log(`Unlock T${tier}`);
+            if (this.skeleton) this.skeleton.setTier(tier);
         };
         this.battery.onDeplete = () => console.log("BATTERY DEPLETED");
 
         // Load Assets
         this.sprites.load({
             'bg_zone1': 'assets/images/bg_zone1.png',
-            'enemy_dummy': 'assets/images/enemy_dummy.png',
+            'enemy_dummy': 'assets/images/enemy_dummy.jpg',
 
-            // Hero Parts (Tier 0 - Base)
             'hero_t0_head': 'assets/images/hero_t0_head.png',
             'hero_t0_chest': 'assets/images/hero_t0_chest.png',
             'hero_t0_arm_l': 'assets/images/hero_t0_arm_l.png',
@@ -70,20 +74,59 @@ class Game {
             'hero_t0_leg_l': 'assets/images/hero_t0_leg_l.png',
             'hero_t0_leg_r': 'assets/images/hero_t0_leg_r.png',
 
-            // Weapons
-            'weapon_sword': 'assets/images/weapon_sword.png',
-
             'icon_battery': 'assets/images/ui_battery.png'
         });
 
-        // Hero
-        this.skeleton = new Skeleton(this.canvas.width / 2, this.canvas.height * 0.65);
-        this.updateHeroVisuals();
-        this.enemyShake = 0;
+        // Hero (for battle)
+        this.skeleton = new Skeleton(0, 0);
 
-        this.input.setup();
+        // Input
+        this.setupInput();
+
         requestAnimationFrame((ts) => this.loop(ts));
-        console.log('Game Initialized');
+        console.log('Game Initialized - Map Mode');
+    }
+
+    setupInput() {
+        this.canvas.addEventListener('pointerdown', (e) => {
+            const rect = this.canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            if (this.scene.transitioning) return;
+
+            if (this.scene.currentScene === 'map') {
+                // Map scene - move character
+                if (!this.battery.depleted) {
+                    this.mapScene.handleClick(x, y);
+                }
+            } else if (this.scene.isBattle()) {
+                // Battle scene - trigger attack
+                if (!this.battle.inCombat) {
+                    this.startBattle();
+                }
+            }
+        });
+
+        // Speed button
+        const btnSpeed = document.getElementById('btn-speed');
+        if (btnSpeed) {
+            btnSpeed.addEventListener('click', () => {
+                const newSpeed = this.battle.cycleSpeed();
+                btnSpeed.textContent = `⚡ ${newSpeed}x`;
+            });
+        }
+
+        // Immediate fight button
+        const btnFight = document.getElementById('btn-fight');
+        if (btnFight) {
+            btnFight.addEventListener('click', () => {
+                console.log("Fight button clicked!");
+                // Use first encountered zone or default
+                const testZone = this.mapScene.zones[1]; // 저렙 수풀
+                this.triggerEncounter(testZone);
+            });
+        }
     }
 
     resize() {
@@ -91,26 +134,71 @@ class Game {
         this.canvas.width = container.clientWidth;
         this.canvas.height = container.clientHeight;
         this.renderer.resize(this.canvas.width, this.canvas.height);
-        if (this.skeleton) {
-            this.skeleton.root.x = this.canvas.width / 2;
-            this.skeleton.root.y = this.canvas.height * 0.65;
+    }
+
+    triggerEncounter(zone) {
+        if (this.battery.depleted) {
+            console.log("Battery depleted - no encounter");
+            return;
         }
+
+        // Consume turn for encounter
+        if (!this.battery.consume(BATTLE_CONFIG.TURN_COST_ENTRY)) {
+            console.log("Not enough turns");
+            return;
+        }
+
+        this.currentZone = zone;
+        console.log(`Encounter in ${zone.name}! Starting battle...`);
+
+        this.scene.enterBattle(() => {
+            console.log("Fade complete - positioning hero");
+            // Position hero for battle
+            this.skeleton.x = this.canvas.width * 0.35;
+            this.skeleton.y = this.canvas.height * 0.65;
+            this.skeleton.setFacing(1);
+
+            // Start battle with small delay to ensure scene is ready
+            setTimeout(() => {
+                console.log("Starting battle now");
+                this.startBattle();
+            }, 100);
+        });
     }
 
     startBattle() {
         this.battle.onBattleEnd = (win) => this.onBattleEnd(win);
-        this.battle.start(this.codex, this.zone);
+        this.battle.start(this.codex, this.currentZone);
     }
 
     onBattleEnd(win) {
         if (win) {
-            const tier = this.zone.getDropTier();
+            const tier = this.currentZone.dropTier;
             this.grid.addItem(tier, this.codex);
-            this.ui.addFloatingText(`+T${tier} 아이템 획득!`, this.canvas.width / 2, this.canvas.height * 0.4, '#0f0');
+            this.ui.addFloatingText(`+T${tier} 획득!`, this.canvas.width / 2, this.canvas.height * 0.4, '#0f0');
         } else {
             this.battery.consume(BATTLE_CONFIG.TURN_COST_PENALTY);
-            this.ui.addFloatingText(`패배! -${BATTLE_CONFIG.TURN_COST_PENALTY} 턴`, this.canvas.width / 2, this.canvas.height * 0.4, '#f00');
+            this.ui.addFloatingText(`패배!`, this.canvas.width / 2, this.canvas.height * 0.4, '#f00');
         }
+
+        // Return to map after delay
+        setTimeout(() => {
+            this.scene.exitBattle(() => {
+                this.currentZone = null;
+            });
+        }, 1000);
+    }
+
+    showHeroAttack() {
+        const ex = this.canvas.width * 0.75;
+        const ey = this.canvas.height * 0.65;
+        this.effects.addSlash(ex, ey, 1, '#0ff');
+    }
+
+    showEnemyAttack() {
+        const hx = this.canvas.width * 0.35;
+        const hy = this.canvas.height * 0.65;
+        this.effects.addSlash(hx, hy, -1, '#f44');
     }
 
     loop(timestamp) {
@@ -122,7 +210,7 @@ class Game {
         this.accumulator += frameTime;
 
         while (this.accumulator >= this.dt) {
-            this.update(this.dt, this.time);
+            this.update(this.dt);
             this.accumulator -= this.dt;
             this.time += this.dt;
         }
@@ -131,33 +219,33 @@ class Game {
         requestAnimationFrame((ts) => this.loop(ts));
     }
 
-    update(dt, totalTime) {
-        if (this.skeleton) this.skeleton.update(dt, totalTime);
-        if (this.enemyShake > 0) {
-            this.enemyShake -= dt * 100;
-            if (this.enemyShake < 0) this.enemyShake = 0;
-        }
+    update(dt) {
+        this.scene.update(dt);
+        this.effects.update(dt);
         this.ui.update(dt);
+
+        // Map scene updates
+        if (this.scene.currentScene === 'map') {
+            const encounterZone = this.mapScene.update(dt);
+            if (encounterZone) {
+                this.triggerEncounter(encounterZone);
+            }
+        }
     }
 
     draw() {
         this.renderer.clear();
-        this.ui.draw(this.renderer.ctx);
-    }
+        const ctx = this.renderer.ctx;
 
-    updateHeroVisuals() {
-        let maxTier = 0;
-        this.codex.unlockedTiers.forEach(tier => {
-            if (tier > maxTier) maxTier = tier;
-        });
-        if (maxTier >= 1) {
-            this.skeleton.equip("Head", "t1_helm");
-            this.skeleton.equip("Arm_R", "t1_weapon");
+        if (this.scene.currentScene === 'map') {
+            this.mapScene.draw(ctx, this.canvas);
+        } else if (this.scene.isBattle()) {
+            this.ui.draw(ctx);
+            this.effects.draw(ctx);
         }
-        if (maxTier >= 2) {
-            this.skeleton.equip("Head", "t2_helm");
-            this.skeleton.equip("Arm_R", "t2_weapon");
-        }
+
+        // Scene transition overlay
+        this.scene.drawTransition(ctx, this.canvas.width, this.canvas.height);
     }
 }
 

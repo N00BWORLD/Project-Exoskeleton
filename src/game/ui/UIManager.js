@@ -1,8 +1,5 @@
-import { LangSystem } from '../../core/Lang.js';
-
 /**
- * UIManager - Handles all UI rendering
- * Extracted from main.js for cleaner architecture
+ * UIManager - Handles all UI rendering for battle scene
  */
 export class UIManager {
     constructor(game) {
@@ -10,7 +7,6 @@ export class UIManager {
         this.floatingTexts = [];
     }
 
-    // Add floating text at position
     addFloatingText(text, x, y, color = '#fff') {
         this.floatingTexts.push({
             text: text,
@@ -22,7 +18,6 @@ export class UIManager {
         });
     }
 
-    // Update floating texts (call from game.update)
     update(dt) {
         for (let i = this.floatingTexts.length - 1; i >= 0; i--) {
             const ft = this.floatingTexts[i];
@@ -34,18 +29,19 @@ export class UIManager {
         }
     }
 
-    // Main draw call
     draw(ctx) {
+        // Reset transform at the start
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+
         this.drawBackground(ctx);
         this.drawEnemy(ctx);
         this.drawHero(ctx);
         this.drawHUD(ctx);
-        this.drawGrid(ctx);
         this.drawFloatingTexts(ctx);
     }
 
     drawBackground(ctx) {
-        const { canvas, sprites, zone } = this.game;
+        const { canvas, sprites } = this.game;
         const bg = sprites.get('bg_zone1');
 
         if (bg) {
@@ -53,27 +49,25 @@ export class UIManager {
             ctx.fillStyle = 'rgba(0,0,0,0.5)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
         } else {
-            ctx.fillStyle = zone.getZoneColor();
+            ctx.fillStyle = '#1a1a2e';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
         }
     }
 
     drawEnemy(ctx) {
-        const { canvas, sprites, zone } = this.game;
+        const { canvas, sprites, currentZone } = this.game;
         const ex = canvas.width * 0.75;
         const ey = canvas.height * 0.65;
 
-        const shakeX = (Math.random() - 0.5) * this.game.enemyShake;
-        const shakeY = (Math.random() - 0.5) * this.game.enemyShake;
-
         ctx.save();
-        ctx.translate(ex + shakeX, ey + shakeY);
+        ctx.translate(ex, ey);
 
         const enemySprite = sprites.get('enemy_dummy');
         if (enemySprite) {
             const w = 150, h = 150;
             ctx.drawImage(enemySprite, -w / 2, -h / 2, w, h);
         } else {
+            // Fallback placeholder
             ctx.fillStyle = '#c33';
             ctx.fillRect(-40, -40, 80, 80);
             ctx.fillStyle = '#ff0';
@@ -81,10 +75,11 @@ export class UIManager {
             ctx.fillRect(10, -10, 10, 10);
         }
 
+        // Enemy name based on current zone
         ctx.fillStyle = '#fff';
         ctx.font = '12px monospace';
         ctx.textAlign = 'center';
-        const name = zone.currentZone === 0 ? "Training Dummy" : "Hostile Unit";
+        const name = currentZone ? currentZone.name + " 적" : "Enemy";
         ctx.fillText(name, 0, -80);
 
         ctx.restore();
@@ -98,86 +93,62 @@ export class UIManager {
     }
 
     drawHUD(ctx) {
-        const { canvas, battery, zone, battle } = this.game;
+        const { canvas, battery, battle, currentZone } = this.game;
         ctx.setTransform(1, 0, 0, 1, 0, 0);
 
         // Top Bar
-        ctx.fillStyle = '#222';
-        ctx.fillRect(0, 0, canvas.width, 80);
+        ctx.fillStyle = 'rgba(0,0,0,0.8)';
+        ctx.fillRect(0, 0, canvas.width, 70);
 
         ctx.fillStyle = '#f90';
-        ctx.font = 'bold 20px monospace';
-        ctx.fillText(LangSystem.get("GAME_TITLE"), 20, 30);
+        ctx.font = 'bold 18px monospace';
+        ctx.fillText('⚔️ BATTLE', 20, 25);
 
-        ctx.fillStyle = '#fff';
-        ctx.font = '16px monospace';
-        ctx.fillText(`ZONE: ${zone.getZoneName()} (T${zone.getDropTier()})`, 20, 55);
+        // Zone info
+        ctx.fillStyle = '#aaa';
+        ctx.font = '14px monospace';
+        const zoneName = currentZone ? currentZone.name : "Unknown";
+        ctx.fillText(`Zone: ${zoneName}`, 20, 48);
 
         // Turns
         ctx.fillStyle = battery.depleted ? '#f00' : '#0f0';
-        ctx.font = 'bold 24px monospace';
+        ctx.font = 'bold 20px monospace';
         ctx.textAlign = 'right';
-        ctx.fillText(`${battery.currentTurns} / ${battery.maxTurns} TURNS`, canvas.width - 20, 55);
+        ctx.fillText(`${battery.currentTurns}/${battery.maxTurns}`, canvas.width - 20, 40);
         ctx.textAlign = 'left';
 
         // HP Bars
         if (battle.inCombat || battle.heroHP < battle.heroMaxHP) {
-            const hPct = battle.heroHP / battle.heroMaxHP;
-            ctx.fillStyle = '#f00';
-            ctx.fillRect(canvas.width / 2 - 50, canvas.height * 0.55, 100 * hPct, 10);
+            // Hero HP bar
+            const hPct = Math.max(0, battle.heroHP / battle.heroMaxHP);
+            const hx = canvas.width * 0.35;
+            const hy = canvas.height * 0.55;
+            ctx.fillStyle = '#333';
+            ctx.fillRect(hx - 50, hy, 100, 12);
+            ctx.fillStyle = hPct > 0.3 ? '#0f0' : '#f00';
+            ctx.fillRect(hx - 50, hy, 100 * hPct, 12);
             ctx.strokeStyle = '#fff';
-            ctx.strokeRect(canvas.width / 2 - 50, canvas.height * 0.55, 100, 10);
+            ctx.lineWidth = 1;
+            ctx.strokeRect(hx - 50, hy, 100, 12);
 
-            const ePct = battle.enemyHP / battle.enemyMaxHP;
+            // Hero HP text
+            ctx.fillStyle = '#fff';
+            ctx.font = '10px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(`${battle.heroHP}/${battle.heroMaxHP}`, hx, hy + 10);
+
+            // Enemy HP bar
+            const ePct = Math.max(0, battle.enemyHP / battle.enemyMaxHP);
             const ex = canvas.width * 0.75;
-            const ey = canvas.height * 0.65;
-            ctx.fillStyle = '#f00';
-            ctx.fillRect(ex - 40, ey - 60, 80 * ePct, 10);
-        }
-    }
+            const ey = canvas.height * 0.55;
+            ctx.fillStyle = '#333';
+            ctx.fillRect(ex - 50, ey, 100, 12);
+            ctx.fillStyle = '#f44';
+            ctx.fillRect(ex - 50, ey, 100 * ePct, 12);
+            ctx.strokeRect(ex - 50, ey, 100, 12);
 
-    drawGrid(ctx) {
-        const { grid, codex } = this.game;
-        const cellSize = 40;
-        const startX = 20;
-        const startY = 100;
-
-        ctx.strokeStyle = '#444';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-
-        for (let i = 0; i < grid.cells.length; i++) {
-            const x = startX + (i % grid.cols) * cellSize;
-            const y = startY + Math.floor(i / grid.cols) * cellSize;
-
-            ctx.strokeRect(x, y, cellSize, cellSize);
-
-            const item = grid.cells[i];
-            if (item) {
-                const isDiscovered = codex.isDiscovered(item.tier);
-                const isMastered = codex.isUnlocked(item.tier);
-
-                if (isDiscovered) {
-                    ctx.fillStyle = `hsl(${item.tier * 40}, 70%, 50%)`;
-                    ctx.fillRect(x + 2, y + 2, cellSize - 4, cellSize - 4);
-
-                    ctx.fillStyle = '#fff';
-                    ctx.font = '16px sans-serif';
-                    ctx.fillText(item.tier, x + cellSize / 2, y + cellSize / 2);
-
-                    if (isMastered) {
-                        ctx.strokeStyle = '#ffd700';
-                        ctx.lineWidth = 3;
-                        ctx.strokeRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
-                    }
-                } else {
-                    ctx.fillStyle = '#222';
-                    ctx.fillRect(x + 2, y + 2, cellSize - 4, cellSize - 4);
-                    ctx.fillStyle = '#666';
-                    ctx.font = 'bold 20px monospace';
-                    ctx.fillText("?", x + cellSize / 2, y + cellSize / 2);
-                }
-            }
+            // Enemy HP text
+            ctx.fillText(`${battle.enemyHP}/${battle.enemyMaxHP}`, ex, ey + 10);
         }
     }
 

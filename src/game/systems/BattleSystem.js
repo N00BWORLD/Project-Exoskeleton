@@ -30,7 +30,7 @@ export class BattleSystem {
         return this.speedMultiplier;
     }
 
-    calculateStats(codex, zone) {
+    calculateStats(codex, stage) {
         // 1. Base Stats
         const stats = { ...MASTERY_BONUS };
         Object.keys(stats).forEach(k => stats[k] = 0);
@@ -51,15 +51,15 @@ export class BattleSystem {
         this.heroATK = stats.atk;
         this.critChance = stats.crit || 0;
 
-        // 3. Enemy Stats
-        const zoneMult = zone.getZoneMult ? zone.getZoneMult() : 1.0;
-        this.enemyMaxHP = Math.floor(BATTLE_CONFIG.ENEMY_BASE_HP * zoneMult);
-        this.enemyATK = Math.floor(BATTLE_CONFIG.ENEMY_BASE_ATK * zoneMult);
+        // 3. Enemy Stats (based on stage difficulty)
+        const difficulty = stage ? stage.difficulty : 1.0;
+        this.enemyMaxHP = Math.floor(BATTLE_CONFIG.ENEMY_BASE_HP * difficulty);
+        this.enemyATK = Math.floor(BATTLE_CONFIG.ENEMY_BASE_ATK * difficulty);
     }
 
-    start(codex, zone) {
+    start(codex, stage) {
         this.inCombat = true;
-        this.calculateStats(codex, zone);
+        this.calculateStats(codex, stage);
         this.heroHP = this.heroMaxHP;
         this.enemyHP = this.enemyMaxHP;
 
@@ -82,7 +82,7 @@ export class BattleSystem {
         }
 
         setTimeout(() => {
-            // Visual/Sound Effects triggered via Main Game reference
+            // Visual/Sound Effects
             this.game.sound.playHit();
 
             if (isHeroTurn) {
@@ -96,14 +96,10 @@ export class BattleSystem {
                 }
                 this.enemyHP -= dmg;
 
-                // Visuals - Trigger slash attack
-                this.game.skeleton.setFacing(1); // Face right (toward enemy)
-                this.game.skeleton.attack(); // Trigger slash animation
-                this.game.skeleton.root.x += 30;
-                setTimeout(() => this.game.skeleton.root.x -= 30, 100);
-                this.game.enemyShake = 10;
+                // Slash effect on enemy
+                this.game.showHeroAttack();
 
-                // Floating Damage Text (at enemy position)
+                // Floating Damage Text
                 const ex = this.game.canvas.width * 0.75;
                 const ey = this.game.canvas.height * 0.5;
                 const dmgText = isCrit ? `${dmg} 크리티컬!` : `-${dmg}`;
@@ -116,11 +112,10 @@ export class BattleSystem {
                 const dmg = this.enemyATK;
                 this.heroHP -= dmg;
 
-                // Visuals
-                this.game.skeleton.root.x -= 20;
-                setTimeout(() => this.game.skeleton.root.x += 20, 100);
+                // Slash effect on hero
+                this.game.showEnemyAttack();
 
-                // Floating Damage Text (at hero position)
+                // Floating Damage Text
                 const hx = this.game.canvas.width * 0.35;
                 const hy = this.game.canvas.height * 0.5;
                 this.game.ui.addFloatingText(`-${dmg}`, hx, hy, '#f66');
